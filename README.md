@@ -11,7 +11,7 @@
         2. Lease-ul si managementul adreselor IP;
         3. Configurarea dinamica a setarilor de retea, precum:
             - Gateway implicit;
-            - Server DNS (Domain Name System);
+            - Server DNS;
             - Masca de subretea.
         4. Reinnoirea automata a Lease-urilor la un anumit interval de timp;
         5. Eliberarea IP-urilor (la solicitarea clientului).
@@ -27,11 +27,12 @@
         2. Riscuri de securitate;
         3. Interferenta cu alte retele;
         
-    Pentru implementare vom folosi biblioteca de socketuri POSIX pemtru a realiza comunicarea in retea prin socketi UDP.
+    Pentru implementare vom folosi biblioteca de socketuri POSIX pemtru a realiza comunicarea în rețea prin sockeți UDP.
     Serverul DHCP va asculta pe portul 67, iar clientul va folosi portul 68.
-    Mesajul DHCP va fi reprezentat de o structura de tipul:
+    Mesajul DHCP va fi reprezentat de o structură de tipul:
 
-        struct dhcp_message{
+    struct dhcp_message
+    {
         unsigned char op;               // Opcode: 1 - cerere, 2 - raspuns
         unsigned char htype;            // Tip hardware (1 pentru Ethernet)
         unsigned char hlen;             // Lungime hardware (6 pentru 6 octeti pentru adresa MAC)
@@ -48,5 +49,25 @@
         char file[128];                 // Nume fișier de boot
         unsigned char options[312];     // Opțiuni DHCP
     };
-    Serverul va gestiona mesajele DHCP primite si va returna mesaje de tip OFFER si ACK.
-    Totodata serverul mentine o lista de lease-uri active care leaga adresa ip de adresa mac pentru o perioada de timp.
+    
+    Serverul va gestiona mesajele DHCP primite și va returna mesaje de tip OFFER ca raspuns la DISCOVER si ACK ca raspuns la REQUEST.
+    Totodata serverul mentine o listă de lease-uri active care leaga adresa ip de adresa mac pentru o perioada de timp.
+    Serverul nu va prezenta interfață grafică și va fi executat din linie de comandă.
+
+    Configurarea serverului DCHP se va face printr-un fișier de configurare care va conține următoarele informații:
+
+    -Definirea Gamelor de Adrese
+        Exemplu: subnet 10.0.1.0 
+        Definește intervalul de adrese IP din care serverul DHCP poate aloca adrese pentru clienți. Adresa dată este cea a rețelei locale, iar numărul de adrese va fi calulat pe baza măștii de subrețea.
+
+    -Masca de Subrețea
+        Exemplu: subnet-mask 255.255.255.0
+        Specifică masca de subrețea pe care clienții o vor folosi pentru a identifica rețeaua locală.
+
+    -Default Gateway
+        Exemplu: gateway 10.0.1.1
+        Specifică adresa IP a default gateway-ului pe care clienții o vor utiliza.
+
+    -DNS
+        Exemplu: dns 8.8.8.8
+        Specifică adresa DNS care va fi oferită automat dispozitivelor din rețea.
