@@ -6,8 +6,6 @@
 #include <unistd.h>
 #include <errno.h>
 
-#define BROADCAST 1
-#define UNICAST 0
 #define DHCP_TYPE 53
 #define SUBNET_MASK 1
 #define DEFAULT_GATEWAY 3
@@ -38,12 +36,9 @@ struct dhcp_packet
 
 struct ip_cache_entry
 {
-    uint32_t ip_address;
+    unsigned char ip_address[16];
     uint8_t available;
 };
-
-const char available_ip[] = "192.168.1.100";
-int ip_assigned = 0;  
 
 void print_hex(unsigned char* sir, int size)
 {
@@ -56,7 +51,7 @@ void print_hex(unsigned char* sir, int size)
     printf("\n");
 }
 
-void init_dhcp_packet(struct dhcp_packet* packet, uint16_t broadcast_option)
+void init_dhcp_packet(struct dhcp_packet* packet, unsigned char* ip_address)
 {
     packet->op = 2;
     packet->htype = 1;
@@ -64,12 +59,9 @@ void init_dhcp_packet(struct dhcp_packet* packet, uint16_t broadcast_option)
     packet->hops = 0;
     //transaction id is set by client
     //secs is set by client
-    if(broadcast_option)
-        packet->flags = htons(0x8000);
-    else
-        packet->flags = htons(0x0000);
+    packet->flags = htons(0x8000);
     //ciaddr is set by client
-    packet->yiaddr = inet_addr(available_ip);
+    packet->yiaddr = inet_addr(ip_address);
     packet->siaddr = inet_addr("192.168.1.2");
     packet->giaddr = inet_addr("192.168.1.1");
     //chaddr is set by client
@@ -115,7 +107,7 @@ uint32_t get_requested_address(unsigned char* option_ptr)
 int main() 
 {   
     struct ip_cache_entry ip1;
-    ip1.ip_address = inet_addr("192.168.1.99");
+    strcpy(ip1.ip_address,"192.168.1.100");
     ip1.available = 1;
 
     int sockfd;
@@ -175,8 +167,8 @@ int main()
         if (message_type == 1) 
         { 
             printf("DHCP Discover received\n");
-            
-            init_dhcp_packet(&packet,BROADCAST);
+            ip1.available = 1; //TO BE DELETED
+            init_dhcp_packet(&packet,ip1.ip_address);
 
             unsigned char *options = packet.options;
             memcpy(options,&dhcp_cookie,4);
@@ -228,13 +220,14 @@ int main()
             
             uint32_t requested_ip = get_requested_address(packet.options);
             //printf("ReqIP: %x\n", requested_ip);
-            if(ip_assigned == 0 && requested_ip == inet_addr(available_ip))
+            if(ip1.available == 1 && requested_ip == inet_addr(ip1.ip_address))
             {
+                ip1.available = 0;
                 unsigned char *options = packet.options;
                 memcpy(options,&dhcp_cookie,4);
                 options += 4;
 
-                init_dhcp_packet(&packet,UNICAST);
+                init_dhcp_packet(&packet,ip1.ip_address);
                 
                 uint8_t ack_code = 5;
                 add_dhcp_option(options, DHCP_TYPE, sizeof(ack_code), &ack_code); 
