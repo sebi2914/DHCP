@@ -49,7 +49,7 @@ void print_hex(unsigned char* sir, int size)
 {
     for(int i=1;i<=size;i++)
     {
-        printf("%hhx ", sir[i-1]);
+        printf("%2hhx ", sir[i-1]);
         if(i%16 == 0)
         printf("\n");
     }
@@ -102,6 +102,7 @@ uint32_t get_requested_address(unsigned char* option_ptr)
     option_ptr += 4;
     while(*option_ptr != REQUESTED_IP)
     {
+       //printf("Option: %d - %d\n", *option_ptr, *(option_ptr+1));
         option_ptr+=*(option_ptr+1);
         option_ptr+=2;
     }
@@ -121,6 +122,12 @@ int main()
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) 
     {
         printf("Socket creation failed");
+        exit(errno);
+    }
+    
+    int broadcast = 1;
+    if (setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast)) < 0) {
+        printf("Failed to enable broadcast");
         exit(errno);
     }
 
@@ -200,19 +207,11 @@ int main()
             options = options + sizeof(lease_time) + 2;
 
             *options = END_BYTE; 
-
-            //print_hex((char*)&packet,sizeof(packet));
             
             memset(&client_addr,0,client_len);
             client_addr.sin_family = AF_INET;
             client_addr.sin_addr.s_addr = INADDR_BROADCAST;
             client_addr.sin_port = htons(68);
-
-            int broadcast = 1;
-            if (setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast)) < 0) {
-                perror("Failed to enable broadcast");
-                exit(EXIT_FAILURE);
-            }
 
             int actual_packet_size = size_to_send(packet.options);
 
@@ -227,31 +226,60 @@ int main()
         { 
             printf("DHCP Request received\n");
             
-            if(ip_assigned == 0)
+            uint32_t requested_ip = get_requested_address(packet.options);
+            //printf("ReqIP: %x\n", requested_ip);
+            if(ip_assigned == 0 && requested_ip == inet_addr(available_ip))
             {
                 unsigned char *options = packet.options;
-                uint32_t requested_ip = get_requested_address(options);
+                memcpy(options,&dhcp_cookie,4);
+                options += 4;
 
-                //TODO: Implement DHCP ACK
+                init_dhcp_packet(&packet,UNICAST);
+                
+                uint8_t ack_code = 5;
+                add_dhcp_option(options, DHCP_TYPE, sizeof(ack_code), &ack_code); 
+                options = options + sizeof(ack_code) + 2;
 
-                add_dhcp_option(options, 53, 1, (uint8_t[]){5}); 
-                options += 3;
-                add_dhcp_option(options, 1, 4, (uint32_t[]){inet_addr("255.255.255.0")}); 
-                options += 6;
-                add_dhcp_option(options, 3, 4, (uint32_t[]){inet_addr("192.168.1.1")}); 
-                options += 6;
-                add_dhcp_option(options, 51, 4, (uint32_t[]){htonl(3600)}); 
-                options += 6;
-                *options = 255; 
-                    
-                    if (sendto(sockfd, &packet, sizeof(packet), 0, (struct sockaddr *)&client_addr, client_len) < 0) 
+                uint32_t dhcp_identifier = inet_addr("192.168.1.2");
+                add_dhcp_option(options, DHCP_IDENTIFIER, sizeof(dhcp_identifier), &dhcp_identifier);
+                options = options + sizeof(dhcp_identifier) + 2;
+
+                uint32_t subnet_mask = inet_addr("255.255.255.0");
+                add_dhcp_option(options, SUBNET_MASK, sizeof(subnet_mask), &subnet_mask); 
+                options = options + sizeof(subnet_mask) + 2;
+
+                uint32_t default_gateway = inet_addr("192.168.1.1");
+                add_dhcp_option(options, DEFAULT_GATEWAY, sizeof(default_gateway), &default_gateway); 
+                options = options + sizeof(default_gateway) + 2;
+
+                uint32_t broadcast_address = inet_addr("192.168.1.255");
+                add_dhcp_option(options, BROADCAST_ADDRESS, sizeof(broadcast_address), &broadcast_address); 
+                options = options + sizeof(broadcast_address) + 2;
+
+                uint32_t lease_time = htonl(1800);
+                add_dhcp_option(options, LEASE_TIME, sizeof(lease_time), &lease_time); 
+                options = options + sizeof(lease_time) + 2;
+
+                *options = END_BYTE; 
+
+                //print_hex((char*)&packet,sizeof(packet));
+
+                memset(&client_addr,0,client_len);
+                client_addr.sin_family = AF_INET;
+                client_addr.sin_addr.s_addr = INADDR_BROADCAST;//requested_ip;
+                //printf("IP: %s\n",inet_ntoa(client_addr.sin_addr));
+                client_addr.sin_port = htons(68);
+
+                int actual_packet_size = size_to_send(packet.options);
+
+                if (sendto(sockfd, &packet, actual_packet_size, 0, (struct sockaddr *)&client_addr, client_len) < 0) 
                     {
                         printf("Failed to send DHCP ACK\n");
                     } 
                     else 
                         printf("DHCP ACK sent to client\n");
             }
-            else printf("IP Address is already used\n");
+            else printf("IP Address is not available\n");
         }
     }
     
