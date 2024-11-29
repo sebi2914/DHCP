@@ -71,3 +71,7 @@
     -DNS
         Exemplu: dns 8.8.8.8
         Specifică adresa DNS care va fi oferită automat dispozitivelor din rețea.
+
+    -Nume domeniu
+        Exemplu: domain-name testdhcp.com
+        Specifica domeniul din care face parte adresa.
