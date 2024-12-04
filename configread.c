@@ -7,7 +7,7 @@
 
 #include "configread.h"
 
-char *subnet, *mask, *gateway, *dns1, *dns2, *domain;
+char network[16], mask[16], gateway[16], dns1[16], dns2[16], domain[16], broadcastIP[16], adresaIPServer[16];
 
 struct ip_cache_entry *ips = NULL;
 
@@ -37,7 +37,7 @@ char *readconfigfile()
 
 int getType(char *buff)
 {
-    if (strcmp(buff, "subnet") == 0)
+    if (strcmp(buff, "network") == 0)
         return 1;
     if (strcmp(buff, "subnet-mask") == 0)
         return 2;
@@ -63,22 +63,22 @@ void parseConfigFile(char *buff)
         switch (a)
         {
         case 1:
-            subnet = p;
+            strcpy(network, p);
             break;
         case 2:
-            mask = p;
+            strcpy(mask, p);
             break;
         case 3:
-            gateway = p;
+            strcpy(gateway, p);
             break;
         case 4:
-            dns1 = p;
+            strcpy(dns1, p);
             break;
         case 5:
-            dns2 = p;
+            strcpy(dns2, p);
             break;
         case 6:
-            domain = p;
+            strcpy(domain, p);
             break;
         default:
             break;
@@ -130,16 +130,28 @@ struct ip_cache_entry *cacheIpAddresses(int *n)
     *n = total_addresses;
 
     struct in_addr subnet_addr;
-    inet_pton(AF_INET, subnet, &subnet_addr);
+    inet_pton(AF_INET, network, &subnet_addr);
 
-    uint32_t base_ip = ntohl(subnet_addr.s_addr) + 2;
+    uint32_t base_ip = ntohl(subnet_addr.s_addr);
+
+    struct in_addr mask_addr, broadcast_addr;
+    inet_pton(AF_INET, mask, &mask_addr);
+
+    uint32_t mask_val = ntohl(mask_addr.s_addr);
+    uint32_t broadcast_ip = base_ip | (~mask_val);
+
+    broadcast_addr.s_addr = htonl(broadcast_ip);
+
+    inet_ntop(AF_INET, &broadcast_addr, broadcastIP, INET_ADDRSTRLEN);
+
+    printf("Broadcast address: %s\n", broadcastIP);
 
     for (int i = 0; i < total_addresses - 1; i++)
     {
         ips[i].available = AVAILABLE;
         ips[i].lease_time = LEASETIME;
 
-        uint32_t current_ip = base_ip + i;
+        uint32_t current_ip = base_ip + 2 + i;
 
         struct in_addr ip;
         ip.s_addr = htonl(current_ip);
@@ -182,6 +194,7 @@ void setUnavailable(int totalAddresses)
         if (strcmp(ips[i].ip_address, ip) == 0)
         {
             ips[i].available = UNAVAILABLE;
+            strcpy(adresaIPServer, ips[i].ip_address);
         }
     }
 }
@@ -198,8 +211,8 @@ struct ip_cache_entry getNextAvailableIp(int n)
         }
         else
             c++;
-        }
+    }
     if (c == n)
-        errExit("No more availablee IPs!");
+        errExit("No more available IPs!");
     errExit("Next available IP");
 }

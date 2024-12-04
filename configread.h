@@ -14,7 +14,7 @@
 #include <net/if.h>
 #include <sys/socket.h>
 
-extern char *subnet, *mask, *gateway, *dns1, *dns2, *domain;
+extern char network[16], mask[16], gateway[16], dns1[16], dns2[16], domain[16], broadcastIP[16], adresaIPServer[16];
 
 struct ip_cache_entry
 {
@@ -32,7 +32,6 @@ void errExit(const char *msg);
 void parseConfigFile(char *buff);
 
 int getType(char *buff);
-
 struct ip_cache_entry *cacheIpAddresses(int *n);
 
 void setUnavailable(int totalAddresses);

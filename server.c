@@ -8,6 +8,8 @@
 #define LEASE_TIME 51
 #define REQUESTED_IP 50
 #define END_BYTE 255
+#define AVAILABLE 1
+#define UNAVAILABLE 0
 
 #define MAX_IP_ADDRESS 255
 
@@ -97,9 +99,17 @@ uint32_t get_requested_address(unsigned char *option_ptr)
 
 int main()
 {
-    struct ip_cache_entry ip1;
-    strcpy(ip1.ip_address, "192.168.1.100");
-    ip1.available = 1;
+    char *configfile = readconfigfile();
+    parseConfigFile(configfile);
+    int nrTotalIps;
+    cacheIpAddresses(&nrTotalIps);
+    printf("adresa broadcast: %s", broadcastIP);
+
+    struct ip_cache_entry nextAvailableIp; // = getNextAvailableIp(nrTotalIps);
+
+    // struct ip_cache_entry ip1;
+    // strcpy(ip1.ip_address, "192.168.1.100");
+    // ip1.available = 1;
 
     int sockfd;
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
@@ -159,8 +169,8 @@ int main()
         if (message_type == 1)
         {
             printf("DHCP Discover received\n");
-            ip1.available = 1; // TO BE DELETED
-            init_dhcp_packet(&packet, ip1.ip_address);
+            nextAvailableIp = getNextAvailableIp(nrTotalIps);
+            init_dhcp_packet(&packet, nextAvailableIp.ip_address);
 
             unsigned char *options = packet.options;
             memcpy(options, &dhcp_cookie, 4);
@@ -170,23 +180,23 @@ int main()
             add_dhcp_option(options, DHCP_TYPE, sizeof(offer_code), &offer_code);
             options = options + sizeof(offer_code) + 2;
 
-            uint32_t dhcp_identifier = inet_addr("192.168.1.2");
+            uint32_t dhcp_identifier = inet_addr(adresaIPServer); // ce e asta??
             add_dhcp_option(options, DHCP_IDENTIFIER, sizeof(dhcp_identifier), &dhcp_identifier);
             options = options + sizeof(dhcp_identifier) + 2;
 
-            uint32_t subnet_mask = inet_addr("255.255.255.0");
+            uint32_t subnet_mask = inet_addr(mask); // aici
             add_dhcp_option(options, SUBNET_MASK, sizeof(subnet_mask), &subnet_mask);
             options = options + sizeof(subnet_mask) + 2;
 
-            uint32_t default_gateway = inet_addr("192.168.1.1");
+            uint32_t default_gateway = inet_addr(gateway); // aici
             add_dhcp_option(options, DEFAULT_GATEWAY, sizeof(default_gateway), &default_gateway);
             options = options + sizeof(default_gateway) + 2;
 
-            uint32_t broadcast_address = inet_addr("192.168.1.255");
+            uint32_t broadcast_address = inet_addr(broadcastIP); // aici
             add_dhcp_option(options, BROADCAST_ADDRESS, sizeof(broadcast_address), &broadcast_address);
             options = options + sizeof(broadcast_address) + 2;
 
-            uint32_t lease_time = htonl(1800);
+            uint32_t lease_time = htonl(nextAvailableIp.lease_time);
             add_dhcp_option(options, LEASE_TIME, sizeof(lease_time), &lease_time);
             options = options + sizeof(lease_time) + 2;
 
@@ -212,36 +222,36 @@ int main()
 
             uint32_t requested_ip = get_requested_address(packet.options);
             // printf("ReqIP: %x\n", requested_ip);
-            if (ip1.available == 1 && requested_ip == inet_addr(ip1.ip_address))
+            if (requested_ip == inet_addr(nextAvailableIp.ip_address))
             {
-                ip1.available = 0;
+                // nextAvailableIp.available = 0;  Nu e nevoie, fac asta deja in functie
                 unsigned char *options = packet.options;
                 memcpy(options, &dhcp_cookie, 4);
                 options += 4;
 
-                init_dhcp_packet(&packet, ip1.ip_address);
+                init_dhcp_packet(&packet, nextAvailableIp.ip_address);
 
                 uint8_t ack_code = 5;
                 add_dhcp_option(options, DHCP_TYPE, sizeof(ack_code), &ack_code);
                 options = options + sizeof(ack_code) + 2;
 
-                uint32_t dhcp_identifier = inet_addr("192.168.1.2");
+                uint32_t dhcp_identifier = inet_addr(adresaIPServer);
                 add_dhcp_option(options, DHCP_IDENTIFIER, sizeof(dhcp_identifier), &dhcp_identifier);
                 options = options + sizeof(dhcp_identifier) + 2;
 
-                uint32_t subnet_mask = inet_addr("255.255.255.0");
+                uint32_t subnet_mask = inet_addr(mask);
                 add_dhcp_option(options, SUBNET_MASK, sizeof(subnet_mask), &subnet_mask);
                 options = options + sizeof(subnet_mask) + 2;
 
-                uint32_t default_gateway = inet_addr("192.168.1.1");
+                uint32_t default_gateway = inet_addr(gateway);
                 add_dhcp_option(options, DEFAULT_GATEWAY, sizeof(default_gateway), &default_gateway);
                 options = options + sizeof(default_gateway) + 2;
 
-                uint32_t broadcast_address = inet_addr("192.168.1.255");
+                uint32_t broadcast_address = inet_addr(broadcastIP);
                 add_dhcp_option(options, BROADCAST_ADDRESS, sizeof(broadcast_address), &broadcast_address);
                 options = options + sizeof(broadcast_address) + 2;
 
-                uint32_t lease_time = htonl(1800);
+                uint32_t lease_time = htonl(nextAvailableIp.lease_time);
                 add_dhcp_option(options, LEASE_TIME, sizeof(lease_time), &lease_time);
                 options = options + sizeof(lease_time) + 2;
 
@@ -270,18 +280,6 @@ int main()
     }
 
     close(sockfd);
-
-    char *configfile = readconfigfile();
-
-    parseConfigFile(configfile);
-
-    int nrTotalIps;
-
-    cacheIpAddresses(&nrTotalIps);
-
-    struct ip_cache_entry nextAvailableIp = getNextAvailableIp(nrTotalIps);
-
-    printf("IP: %s", nextAvailableIp.ip_address);
 
     return 0;
 }

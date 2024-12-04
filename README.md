@@ -57,7 +57,7 @@
     Configurarea serverului DCHP se va face printr-un fișier de configurare care va conține următoarele informații:
 
     -Definirea Gamelor de Adrese
-        Exemplu: subnet 10.0.1.0 
+        Exemplu: network 10.0.1.0 
         Definește intervalul de adrese IP din care serverul DHCP poate aloca adrese pentru clienți. Adresa dată este cea a rețelei locale, iar numărul de adrese va fi calulat pe baza măștii de subrețea.
 
     -Masca de Subrețea
