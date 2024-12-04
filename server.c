@@ -9,6 +9,8 @@
 #define REQUESTED_IP 50
 #define END_BYTE 255
 
+#define MAX_IP_ADDRESS 255
+
 struct dhcp_packet
 {
     uint8_t op;
@@ -27,13 +29,6 @@ struct dhcp_packet
     char file[128];
     unsigned char options[312];
 };
-
-// struct ip_cache_entry
-// {
-//     unsigned char ip_address[16];
-//     uint8_t available;
-//     uint16_t lease_time;
-// };
 
 void print_hex(unsigned char *sir, int size)
 {
@@ -275,5 +270,18 @@ int main()
     }
 
     close(sockfd);
+
+    char *configfile = readconfigfile();
+
+    parseConfigFile(configfile);
+
+    int nrTotalIps;
+
+    cacheIpAddresses(&nrTotalIps);
+
+    struct ip_cache_entry nextAvailableIp = getNextAvailableIp(nrTotalIps);
+
+    printf("IP: %s", nextAvailableIp.ip_address);
+
     return 0;
 }
