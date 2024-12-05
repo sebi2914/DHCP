@@ -3,6 +3,7 @@
 #define DHCP_TYPE 53
 #define SUBNET_MASK 1
 #define DEFAULT_GATEWAY 3
+#define DNS_SERVER 6
 #define BROADCAST_ADDRESS 28
 #define DHCP_IDENTIFIER 54
 #define LEASE_TIME 51
@@ -97,6 +98,14 @@ uint32_t get_requested_address(unsigned char *option_ptr)
     return req_ip;
 }
 
+int check_mac_addr(uint8_t cache_addr[6], unsigned char incoming_addr[16])
+{
+    for(int i=0;i<6;i++)
+        if(cache_addr[i] != incoming_addr[i])
+            return 0;
+    return 1;
+}
+
 int main()
 {
     char *configfile = readconfigfile();
@@ -153,26 +162,28 @@ int main()
         recvfrom(sockfd, &packet, sizeof(packet), 0, (struct sockaddr *)&client_addr, &client_len);
         printf("Transaction ID: %x\n", ntohl(packet.xid));
 
-        unsigned char *option_ptr = packet.options;
-        option_ptr += 4;
+        unsigned char *options = packet.options;
+        options += 4;
 
         uint8_t message_type;
-        while (*option_ptr != 255)
+        while (*options != 255)
         {
-            if (*option_ptr == DHCP_TYPE)
+            if (*options== DHCP_TYPE)
             {
-                message_type = *(option_ptr + 2);
+                message_type = *(options + 2);
                 break;
             }
-            option_ptr += *(option_ptr + 1) + 1;
+            options += *(options + 1) + 1;
         }
         if (message_type == 1)
         {
             printf("DHCP Discover received\n");
             nextAvailableIp = getNextAvailableIp(nrTotalIps);
             init_dhcp_packet(&packet, nextAvailableIp.ip_address);
-
-            unsigned char *options = packet.options;
+///
+            memcpy(nextAvailableIp.mac_addr,packet.chaddr,6);
+///
+            options = packet.options;
             memcpy(options, &dhcp_cookie, 4);
             options += 4;
 
@@ -200,6 +211,12 @@ int main()
             add_dhcp_option(options, LEASE_TIME, sizeof(lease_time), &lease_time);
             options = options + sizeof(lease_time) + 2;
 
+            uint32_t dns_servers[2];
+            dns_servers[0] = inet_addr(dns1);
+            dns_servers[1] = inet_addr(dns2);
+            add_dhcp_option(options, DNS_SERVER, sizeof(dns_servers),&dns_servers);
+            options = options + sizeof(options) + 2;
+
             *options = END_BYTE;
 
             memset(&client_addr, 0, client_len);
@@ -218,14 +235,14 @@ int main()
         }
         else if (message_type == 3)
         {
-            printf("DHCP Request received\n");
+            printf("\nDHCP Request received\n");
 
             uint32_t requested_ip = get_requested_address(packet.options);
             // printf("ReqIP: %x\n", requested_ip);
-            if (requested_ip == inet_addr(nextAvailableIp.ip_address))
+            if (requested_ip == inet_addr(nextAvailableIp.ip_address) || check_mac_addr(nextAvailableIp.mac_addr,packet.chaddr))
             {
                 // nextAvailableIp.available = 0;  Nu e nevoie, fac asta deja in functie
-                unsigned char *options = packet.options;
+                options = packet.options;
                 memcpy(options, &dhcp_cookie, 4);
                 options += 4;
 
@@ -255,6 +272,12 @@ int main()
                 add_dhcp_option(options, LEASE_TIME, sizeof(lease_time), &lease_time);
                 options = options + sizeof(lease_time) + 2;
 
+                uint32_t dns_servers[2];
+                dns_servers[0] = inet_addr(dns1);
+                dns_servers[1] = inet_addr(dns2);
+                add_dhcp_option(options, DNS_SERVER, sizeof(dns_servers),&dns_servers);
+                options = options + sizeof(options) + 2;
+            
                 *options = END_BYTE;
 
                 // print_hex((char*)&packet,sizeof(packet));

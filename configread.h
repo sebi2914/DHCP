@@ -18,6 +18,7 @@ extern char network[16], mask[16], gateway[16], dns1[16], dns2[16], domain[16], 
 
 struct ip_cache_entry
 {
+    uint8_t mac_addr[6];
     unsigned char ip_address[16];
     uint8_t available;
     uint16_t lease_time;
