@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "configread.h": "c",
+        "dhcp_utils.h": "c"
+    }
+}

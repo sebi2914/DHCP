@@ -150,7 +150,7 @@ struct ip_cache_entry *cacheIpAddresses(int *n)
     {
         ips[i].available = AVAILABLE;
         ips[i].lease_time = LEASETIME;
-
+        memset(ips[i].mac_addr,0,6);
         uint32_t current_ip = base_ip + 2 + i;
 
         struct in_addr ip;
@@ -215,4 +215,38 @@ struct ip_cache_entry getNextAvailableIp(int n)
     if (c == n)
         errExit("No more available IPs!");
     errExit("Next available IP");
+}
+
+int check_mac_addr(uint8_t cache_addr[6], unsigned char incoming_addr[16])
+{
+    for(int i=0;i<6;i++)
+        if(cache_addr[i] != incoming_addr[i])
+            return 0;
+    return 1;
+}
+
+int check_mac_in_cache(unsigned char *client_mac, int cache_size)
+{
+    for(int i=0;i<cache_size;i++)
+    {
+        if(check_mac_addr(ips[i].mac_addr,client_mac))
+            {
+                if(ips[i].available == UNAVAILABLE)
+                    return 1;
+                return 0;
+            }
+    }
+    return 0;
+}
+
+void set_mac_to_addr(unsigned char *mac_addr, unsigned char *ip_addr, int cache_size)
+{
+    for(int i=0;i<cache_size;i++)
+    {
+        if(strcmp(ips[i].ip_address,ip_addr) == 0)
+        {
+            memcpy(ips[i].mac_addr, mac_addr, 6);
+            return;
+        }
+    }
 }
