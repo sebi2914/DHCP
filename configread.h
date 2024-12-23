@@ -15,6 +15,7 @@
 #include <sys/socket.h>
 
 extern char network[16], mask[16], gateway[16], dns1[16], dns2[16], domain[16], broadcastIP[16], adresaIPServer[16];
+extern uint16_t leasing_time;
 
 struct ip_cache_entry
 {
@@ -44,3 +45,5 @@ void checkAvailability(int n);
 int check_mac_in_cache(unsigned char* client_mac, int cache_size);
 
 void set_mac_to_addr(unsigned char* mac_addr, unsigned char* ip_addr, int cache_size);
+
+void* decrement_lease_time(void* arg);

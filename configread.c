@@ -1,5 +1,5 @@
 #define CONFIGFILE "dhcpconfig"
-#define LEASETIME 1800
+#define LEASETIME 10
 #define AVAILABLE 1
 #define UNAVAILABLE 0
 
@@ -8,6 +8,7 @@
 #include "configread.h"
 
 char network[16], mask[16], gateway[16], dns1[16], dns2[16], domain[16], broadcastIP[16], adresaIPServer[16];
+uint16_t leasing_time = LEASETIME;
 
 struct ip_cache_entry *ips = NULL;
 
@@ -149,8 +150,8 @@ struct ip_cache_entry *cacheIpAddresses(int *n)
     for (int i = 0; i < total_addresses - 1; i++)
     {
         ips[i].available = AVAILABLE;
-        ips[i].lease_time = LEASETIME;
-        memset(ips[i].mac_addr,0,6);
+        ips[i].lease_time = 0;
+        memset(ips[i].mac_addr,0,6);  // initializare MAC cu 0
         uint32_t current_ip = base_ip + 2 + i;
 
         struct in_addr ip;
@@ -207,6 +208,7 @@ struct ip_cache_entry getNextAvailableIp(int n)
         if (ips[i].available == AVAILABLE)
         {
             ips[i].available = UNAVAILABLE;
+            ips[i].lease_time = leasing_time;
             return ips[i];
         }
         else
@@ -217,7 +219,7 @@ struct ip_cache_entry getNextAvailableIp(int n)
     errExit("Next available IP");
 }
 
-int check_mac_addr(uint8_t cache_addr[6], unsigned char incoming_addr[16])
+int check_mac_addr(uint8_t cache_addr[6], unsigned char incoming_addr[12])
 {
     for(int i=0;i<6;i++)
         if(cache_addr[i] != incoming_addr[i])
@@ -232,7 +234,10 @@ int check_mac_in_cache(unsigned char *client_mac, int cache_size)
         if(check_mac_addr(ips[i].mac_addr,client_mac))
             {
                 if(ips[i].available == UNAVAILABLE)
-                    return 1;
+                    {
+                        ips[i].lease_time = leasing_time;
+                        return 1;
+                    }
                 return 0;
             }
     }
@@ -248,5 +253,28 @@ void set_mac_to_addr(unsigned char *mac_addr, unsigned char *ip_addr, int cache_
             memcpy(ips[i].mac_addr, mac_addr, 6);
             return;
         }
+    }
+}
+
+void* decrement_lease_time(void *arg)
+{
+    int cache_size = *(int*)arg;
+    while(1)
+    {
+        for(int i=0;i<cache_size;i++)
+        {
+            unsigned char parrot_addr[12] = {0x00,0x0C,0x29,0x62,0x16,0x2D}; // se poate sterge
+            if(check_mac_addr(ips[i].mac_addr,parrot_addr))                  // si asta
+                if(ips[i].lease_time)                                        // si asta
+                    printf("Lease time-ul este: %d\n", ips[i].lease_time);   // si asta
+                else                                                         // si asta
+                    printf("A expirat lease time-ul\n");                     // si asta
+            if(ips[i].lease_time <= 0 && strcmp(ips[i].ip_address,adresaIPServer) != 0) //gasea adresa ip a serverului si o punea pe aia :))
+                ips[i].available = AVAILABLE;
+            else
+                ips[i].lease_time--;
+        }
+        sleep(1);
+        printf("A trecut 1 secunda\n");
     }
 }

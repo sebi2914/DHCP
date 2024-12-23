@@ -1,5 +1,6 @@
 #include "configread.h"
 #include "dhcp_utils.h"
+#include <pthread.h>
 
 int main()
 {
@@ -8,7 +9,10 @@ int main()
     int nrTotalIps;
     cacheIpAddresses(&nrTotalIps);
 
-    struct ip_cache_entry nextAvailableIp; 
+    struct ip_cache_entry nextAvailableIp;
+
+    pthread_t timer;  
+    pthread_create(&timer,NULL, decrement_lease_time, &nrTotalIps);
 
     int sockfd;
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
@@ -46,17 +50,16 @@ int main()
     }
 
     printf("DHCP Server is running...\n");
-    
     uint8_t offer_code = 2;
     uint8_t ack_code = 5;
     uint32_t dhcp_identifier = inet_addr(adresaIPServer);
     uint32_t subnet_mask = inet_addr(mask);
     uint32_t default_gateway = inet_addr(gateway); 
     uint32_t broadcast_address = inet_addr(broadcastIP); 
-    uint32_t lease_time = htonl(10);
+    uint32_t lease_time = htonl(leasing_time);
     uint32_t dns_servers[2];
     dns_servers[0] = inet_addr(dns1);
-    dns_servers[1] = inet_addr(dns2);
+    dns_servers[1] = inet_addr(dns2);  
 
     while (1)
     {
