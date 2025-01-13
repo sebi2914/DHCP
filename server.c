@@ -1,18 +1,46 @@
-#include "configread.h"
 #include "dhcp_utils.h"
-#include <pthread.h>
+
+pthread_t threads[NR_THREADS];
+int available_thread[NR_THREADS];
+pthread_mutex_t thread_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int main()
 {
+    sigset_t set;
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+
+    sa.sa_flags = SA_RESTART;
+    sa.sa_handler = signal_handler;
+
+    sigemptyset(&sa.sa_mask);
+    sigaddset(&sa.sa_mask, SIGINT);
+    sigaddset(&sa.sa_mask, SIGTERM);
+    sigaddset(&sa.sa_mask, SIGSTOP);
+
+    if (sigaction(SIGINT, &sa, NULL) == -1)
+    {
+        perror("sigaction SIGINT");
+        exit(EXIT_FAILURE);
+    }
+    if (sigaction(SIGTERM, &sa, NULL) == -1)
+    {
+        perror("sigaction SIGTERM");
+        exit(EXIT_FAILURE);
+    }
+    if (sigaction(SIGQUIT, &sa, NULL) == -1)
+    {
+        perror("sigaction SIGQUIT");
+        exit(EXIT_FAILURE);
+    }
+
     char *configfile = readconfigfile();
     parseConfigFile(configfile);
     int nrTotalIps;
     cacheIpAddresses(&nrTotalIps);
 
-    struct ip_cache_entry nextAvailableIp;
-
-    pthread_t timer;  
-    pthread_create(&timer,NULL, decrement_lease_time, &nrTotalIps);
+    pthread_t timer;
+    pthread_create(&timer, NULL, decrement_lease_time, &nrTotalIps);
 
     int sockfd;
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
@@ -54,15 +82,26 @@ int main()
     uint8_t ack_code = 5;
     uint32_t dhcp_identifier = inet_addr(adresaIPServer);
     uint32_t subnet_mask = inet_addr(mask);
-    uint32_t default_gateway = inet_addr(gateway); 
-    uint32_t broadcast_address = inet_addr(broadcastIP); 
+    uint32_t default_gateway = inet_addr(gateway);
+    uint32_t broadcast_address = inet_addr(broadcastIP);
     uint32_t lease_time = htonl(leasing_time);
     uint32_t dns_servers[2];
     dns_servers[0] = inet_addr(dns1);
-    dns_servers[1] = inet_addr(dns2);  
+    dns_servers[1] = inet_addr(dns2);
+
+    for (int i = 0; i < NR_THREADS; i++)
+    {
+        available_thread[i] = THREAD_AVAILABLE;
+    }
+
+    struct ip_cache_entry nextAvailableIp;
+    struct threadsStruct DHCPStruct;
 
     while (1)
     {
+        nextAvailableIp = getNextAvailableIp(nrTotalIps);
+        printf("\nAvailable ip: %s", nextAvailableIp.ip_address);
+
         memset(&packet, 0, sizeof(packet));
         recvfrom(sockfd, &packet, sizeof(packet), 0, (struct sockaddr *)&client_addr, &client_len);
 
@@ -70,67 +109,79 @@ int main()
         options += 4;
 
         uint8_t message_type = get_message_type(options);
-        uint32_t requested_ip;
+
+        int found_available_thread = 0;
+
+        pthread_mutex_lock(&mutex_struct);
+        DHCPStruct.nrTotalIps = nrTotalIps;
+        memcpy(&(DHCPStruct.nextAvailableIp), &nextAvailableIp, sizeof(nextAvailableIp));
+        memcpy(&DHCPStruct.packet, &packet, sizeof(packet));
+        // DHCPStruct.code = offer_code;
+        DHCPStruct.dhcp_identifier = dhcp_identifier;
+        DHCPStruct.subnet_mask = subnet_mask;
+        DHCPStruct.default_gateway = default_gateway;
+        DHCPStruct.broadcast_address = broadcast_address;
+        DHCPStruct.lease_time = lease_time;
+        DHCPStruct.dns_servers[0] = dns_servers[0];
+        DHCPStruct.dns_servers[1] = dns_servers[1];
+        memcpy(&DHCPStruct.client_addr, &client_addr, sizeof(client_addr));
+        DHCPStruct.client_len = client_len;
+        DHCPStruct.sockfd = sockfd;
+        pthread_mutex_unlock(&mutex_struct);
 
         switch (message_type)
         {
         case 1:
-            printf("DHCP Discover received\n");
-            nextAvailableIp = getNextAvailableIp(nrTotalIps);
-            init_dhcp_packet(&packet, nextAvailableIp.ip_address);
-
-            set_mac_to_addr(packet.chaddr,nextAvailableIp.ip_address,nrTotalIps);
-
-            set_dhcp_packet_options(&options, &offer_code, &dhcp_identifier, &subnet_mask, &default_gateway, &broadcast_address, &lease_time, dns_servers);
-
-            int actual_packet_size = size_to_send(packet.options);
-
-            memset(&client_addr, 0, client_len);
-            client_addr.sin_family = AF_INET;
-            client_addr.sin_addr.s_addr = INADDR_BROADCAST;
-            client_addr.sin_port = htons(68);
-
-            if (sendto(sockfd, &packet, actual_packet_size, 0, (struct sockaddr *)&client_addr, client_len) < 0)
+            DHCPStruct.code = offer_code;
+            while (!found_available_thread)
             {
-                printf("Failed to send DHCP Offer");
+                for (int i = 0; i < NR_THREADS; i++)
+                {
+                    printf("%d,", i);
+                    fflush(stdout);
+                    pthread_mutex_lock(&thread_mutex);
+                    if (available_thread[i] == THREAD_AVAILABLE)
+                    {
+                        available_thread[i] = THREAD_UNAVAILABLE;
+                        pthread_create(&threads[i], NULL, DHCPDiscover, &DHCPStruct);
+                        found_available_thread = 1;
+                        pthread_mutex_unlock(&thread_mutex);
+                        break;
+                    }
+                    pthread_mutex_unlock(&thread_mutex);
+                }
             }
-            else
-                printf("DHCP Offer sent to client\n");
+            found_available_thread = 0;
+
             break;
         case 3:
             printf("\nDHCP Request received\n");
-            if(packet.ciaddr == 0)
-                requested_ip = INADDR_BROADCAST;
-            else
-                requested_ip = packet.ciaddr;
-
-            if (check_mac_in_cache(packet.chaddr,nrTotalIps))
+            DHCPStruct.code = ack_code;
+            while (!found_available_thread)
             {
-                init_dhcp_packet(&packet, nextAvailableIp.ip_address);
-
-                set_dhcp_packet_options(&options, &ack_code, &dhcp_identifier, &subnet_mask, &default_gateway, &broadcast_address, &lease_time, dns_servers);
-
-                memset(&client_addr, 0, client_len);
-                client_addr.sin_family = AF_INET;
-                client_addr.sin_addr.s_addr = requested_ip;
-                client_addr.sin_port = htons(68);
-
-                int actual_packet_size = size_to_send(packet.options);
-
-                if (sendto(sockfd, &packet, actual_packet_size, 0, (struct sockaddr *)&client_addr, client_len) < 0)
+                for (int i = 0; i < NR_THREADS; i++)
                 {
-                    printf("Failed to send DHCP ACK\n");
+                    pthread_mutex_lock(&thread_mutex);
+                    if (available_thread[i] == THREAD_AVAILABLE)
+                    {
+                        available_thread[i] = THREAD_UNAVAILABLE;
+                        pthread_create(&threads[i], NULL, DHCPSRequest, &DHCPStruct);
+                        found_available_thread = 1;
+                        pthread_mutex_unlock(&thread_mutex);
+                        break;
+                    }
+                    pthread_mutex_unlock(&thread_mutex);
                 }
-                else
-                    printf("DHCP ACK sent to client\n");
             }
-            else
-                printf("IP Address is not available\n");
+            found_available_thread = 0;
+
             break;
         default:
             break;
         }
     }
+
+    joinAllWorkingThreads(); // poate functia asta ar trebui afara din bucla??????????
 
     close(sockfd);
 

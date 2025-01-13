@@ -1,7 +1,10 @@
 #define CONFIGFILE "dhcpconfig"
-#define LEASETIME 10
+#define LEASETIME 1800
 #define AVAILABLE 1
 #define UNAVAILABLE 0
+
+#define WRITE_HEAD 1
+#define READ_HEAD 0
 
 #define _GNU_SOURCE
 
@@ -151,7 +154,7 @@ struct ip_cache_entry *cacheIpAddresses(int *n)
     {
         ips[i].available = AVAILABLE;
         ips[i].lease_time = 0;
-        memset(ips[i].mac_addr,0,6);  // initializare MAC cu 0
+        memset(ips[i].mac_addr, 0, 6); // initializare MAC cu 0
         uint32_t current_ip = base_ip + 2 + i;
 
         struct in_addr ip;
@@ -167,36 +170,42 @@ struct ip_cache_entry *cacheIpAddresses(int *n)
 
 void setUnavailable(int totalAddresses)
 {
-    int sock;
-    struct ifreq ifr;
-    char ip[INET_ADDRSTRLEN];
+    char buffer[16]; // Buffer pentru a stoca adresa IP
 
-    sock = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sock < 0)
-        errExit("socket");
-
-    strncpy(ifr.ifr_name, "ens33", IFNAMSIZ - 1); // Exemplu: ens33. interfata de retea, se modifica pentru adresa altei interfete
-
-    if (ioctl(sock, SIOCGIFADDR, &ifr) < 0)
+    // Executăm comanda folosind popen pentru a obține adresa IP
+    FILE *cmd = popen("ifconfig | egrep -o \"inet\\s+([0-9]{1,3}\\.){3}[0-9]{1,3}\" | egrep -v \"127\\.\" | head -n 1 | awk '{print $2}'", "r");
+    if (cmd == NULL)
     {
-        errExit("ioctl");
-        close(sock);
+        perror("popen failed");
+        exit(EXIT_FAILURE);
     }
 
-    close(sock);
-
-    struct sockaddr_in *ipaddr = (struct sockaddr_in *)&ifr.ifr_addr;
-    inet_ntop(AF_INET, &ipaddr->sin_addr, ip, sizeof(ip));
-
-    printf("IP Address of the server: %s\n", ip);
-
-    for (int i = 0; i < totalAddresses; i++)
+    // Citim rezultatul comenzii în buffer
+    if (fgets(buffer, sizeof(buffer), cmd) != NULL)
     {
-        if (strcmp(ips[i].ip_address, ip) == 0)
+        buffer[strcspn(buffer, "\n")] = '\0'; // Eliminăm newline-ul de la sfârșit, dacă există
+        printf("IP Address: %s\n", buffer);
+
+        // Parcurgem lista de adrese IP și marcăm adresa IP a serverului ca indisponibilă
+        for (int i = 0; i < totalAddresses; i++)
         {
-            ips[i].available = UNAVAILABLE;
-            strcpy(adresaIPServer, ips[i].ip_address);
+            if (strcmp(ips[i].ip_address, buffer) == 0)
+            {
+                ips[i].available = UNAVAILABLE;            // Marcam adresa ca indisponibilă
+                strcpy(adresaIPServer, ips[i].ip_address); // Salvăm adresa IP a serverului
+                break;                                     // Ieșim din buclă, deoarece am găsit adresa
+            }
         }
+    }
+    else
+    {
+        fprintf(stderr, "Failed to read IP address from command.\n");
+    }
+
+    // Închidem pipe-ul și verificăm eventualele erori
+    if (pclose(cmd) == -1)
+    {
+        perror("pclose failed");
     }
 }
 
@@ -221,34 +230,34 @@ struct ip_cache_entry getNextAvailableIp(int n)
 
 int check_mac_addr(uint8_t cache_addr[6], unsigned char incoming_addr[12])
 {
-    for(int i=0;i<6;i++)
-        if(cache_addr[i] != incoming_addr[i])
+    for (int i = 0; i < 6; i++)
+        if (cache_addr[i] != incoming_addr[i])
             return 0;
     return 1;
 }
 
 int check_mac_in_cache(unsigned char *client_mac, int cache_size)
 {
-    for(int i=0;i<cache_size;i++)
+    for (int i = 0; i < cache_size; i++)
     {
-        if(check_mac_addr(ips[i].mac_addr,client_mac))
+        if (check_mac_addr(ips[i].mac_addr, client_mac))
+        {
+            if (ips[i].available == UNAVAILABLE)
             {
-                if(ips[i].available == UNAVAILABLE)
-                    {
-                        ips[i].lease_time = leasing_time;
-                        return 1;
-                    }
-                return 0;
+                ips[i].lease_time = leasing_time;
+                return 1;
             }
+            return 0;
+        }
     }
     return 0;
 }
 
 void set_mac_to_addr(unsigned char *mac_addr, unsigned char *ip_addr, int cache_size)
 {
-    for(int i=0;i<cache_size;i++)
+    for (int i = 0; i < cache_size; i++)
     {
-        if(strcmp(ips[i].ip_address,ip_addr) == 0)
+        if (strcmp(ips[i].ip_address, ip_addr) == 0)
         {
             memcpy(ips[i].mac_addr, mac_addr, 6);
             return;
@@ -256,25 +265,25 @@ void set_mac_to_addr(unsigned char *mac_addr, unsigned char *ip_addr, int cache_
     }
 }
 
-void* decrement_lease_time(void *arg)
+void *decrement_lease_time(void *arg)
 {
-    int cache_size = *(int*)arg;
-    while(1)
+    int cache_size = *(int *)arg;
+    while (1)
     {
-        for(int i=0;i<cache_size;i++)
+        for (int i = 0; i < cache_size; i++)
         {
-            unsigned char parrot_addr[12] = {0x00,0x0C,0x29,0x62,0x16,0x2D}; // se poate sterge
-            if(check_mac_addr(ips[i].mac_addr,parrot_addr))                  // si asta
-                if(ips[i].lease_time)                                        // si asta
-                    printf("Lease time-ul este: %d\n", ips[i].lease_time);   // si asta
-                else                                                         // si asta
-                    printf("A expirat lease time-ul\n");                     // si asta
-            if(ips[i].lease_time <= 0 && strcmp(ips[i].ip_address,adresaIPServer) != 0) //gasea adresa ip a serverului si o punea pe aia :))
+            // unsigned char parrot_addr[12] = {0x00,0x0C,0x29,0x62,0x16,0x2D}; // se poate sterge
+            // if(check_mac_addr(ips[i].mac_addr,parrot_addr))                  // si asta
+            //     if(ips[i].lease_time)                                        // si asta
+            //         printf("Lease time-ul este: %d\n", ips[i].lease_time);   // si asta
+            //     else                                                         // si asta
+            //         printf("A expirat lease time-ul\n");                     // si asta
+            if (ips[i].lease_time <= 0 && strcmp(ips[i].ip_address, adresaIPServer) != 0) // gasea adresa ip a serverului si o punea pe aia :))
                 ips[i].available = AVAILABLE;
             else
                 ips[i].lease_time--;
         }
         sleep(1);
-        printf("A trecut 1 secunda\n");
+        // printf("A trecut 1 secunda\n");
     }
 }
