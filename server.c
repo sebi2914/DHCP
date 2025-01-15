@@ -181,7 +181,7 @@ int main()
         }
     }
 
-    joinAllWorkingThreads(); // poate functia asta ar trebui afara din bucla??????????
+    joinAllWorkingThreads();
 
     close(sockfd);
 
