@@ -1,0 +1,4 @@
+[21:05:26] [15.01.2025]	DHCP Server is running...
+
+[21:05:26] [15.01.2025]	Available IP Address: 192.168.1.2
+

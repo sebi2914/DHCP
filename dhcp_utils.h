@@ -15,6 +15,7 @@
 #include <sys/socket.h>
 #include <pthread.h>
 #include <signal.h>
+#include <time.h>
 #include "configread.h"
 
 #define DHCP_TYPE 53
@@ -39,6 +40,8 @@ extern pthread_mutex_t mutex_struct;
 extern pthread_t threads[NR_THREADS];
 extern int available_thread[NR_THREADS];
 extern pthread_mutex_t thread_mutex;
+
+extern int log_fd;
 
 struct dhcp_packet
 {
@@ -88,3 +91,4 @@ void *DHCPDiscover(void *arg);
 void *DHCPSRequest(void *arg);
 void signal_handler(int signum);
 void joinAllWorkingThreads();
+void printInLogFile(const char buff[]);

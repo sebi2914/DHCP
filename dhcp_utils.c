@@ -2,6 +2,49 @@
 
 pthread_mutex_t mutex_struct = PTHREAD_MUTEX_INITIALIZER;
 
+pthread_mutex_t mutex_log = PTHREAD_MUTEX_INITIALIZER;
+
+char *getCurrentTimeAndDate()
+{
+    char *buffer = malloc(50);
+    if (buffer == NULL)
+    {
+        perror("malloc failed");
+        return NULL;
+    }
+
+    time_t now = time(NULL);
+    struct tm *t = localtime(&now);
+
+    snprintf(buffer, 50, "[%02d:%02d:%02d] [%02d.%02d.%04d]",
+             t->tm_hour, t->tm_min, t->tm_sec,
+             t->tm_mday, t->tm_mon + 1, t->tm_year + 1900);
+
+    return buffer;
+}
+
+void printInLogFile(const char buff[])
+{
+    char *crtTime = getCurrentTimeAndDate();
+    if (crtTime == NULL)
+    {
+        fprintf(stderr, "Failed to get current time\n");
+        return;
+    }
+
+    char logEntry[1024];
+    snprintf(logEntry, sizeof(logEntry), "%s\t%s\n", crtTime, buff);
+
+    free(crtTime);
+
+    pthread_mutex_lock(&mutex_log);
+    if (write(log_fd, logEntry, strlen(logEntry)) == -1)
+    {
+        perror("write failed");
+    }
+    pthread_mutex_unlock(&mutex_log);
+}
+
 void joinAllWorkingThreads()
 {
     for (int i = 0; i < NR_THREADS; i++)
@@ -66,6 +109,7 @@ void print_hex(unsigned char *sir, int size)
 
 void init_dhcp_packet(struct dhcp_packet *packet, unsigned char *ip_address)
 {
+    printInLogFile("Initializing DHCP Packet...\n");
     packet->op = 2;
     packet->htype = 1;
     packet->hlen = 6;
@@ -166,7 +210,6 @@ uint8_t get_message_type(unsigned char *option_ptr)
 
 void *DHCPDiscover(void *arg)
 {
-    // poate ca fix cand copiez sa vina alt client si main thread ul sa modifice informatiile
     pthread_mutex_lock(&mutex_struct);
     struct threadsStruct *initialDHCPD = (struct threadsStruct *)arg;
     struct threadsStruct stackDHCPD;
@@ -192,10 +235,14 @@ void *DHCPDiscover(void *arg)
 
     if (sendto(DHCPD->sockfd, &(DHCPD->packet), actual_packet_size, 0, (struct sockaddr *)&(DHCPD->client_addr), DHCPD->client_len) < 0)
     {
+        printInLogFile("Failed to send DHCP Offer");
         printf("Failed to send DHCP Offer");
     }
     else
+    {
+        printInLogFile("DHCP Offer sent to client\n");
         printf("DHCP Offer sent to client\n");
+    }
 
     pthread_exit(NULL);
 }
@@ -234,11 +281,18 @@ void *DHCPSRequest(void *arg)
 
         if (sendto(DHCPR->sockfd, &(DHCPR->packet), actual_packet_size, 0, (struct sockaddr *)&(DHCPR->client_addr), DHCPR->client_len) < 0)
         {
+            printInLogFile("Failed to send DHCP ACK\n");
             printf("Failed to send DHCP ACK\n");
         }
         else
+        {
+            printInLogFile("DHCP ACK sent to client\n");
             printf("DHCP ACK sent to client\n");
+        }
     }
     else
-        printf("IP Address is not available\n");
+    {
+        printInLogFile("IP Address is not available!\n");
+        printf("IP Address is not available!\n");
+    }
 }

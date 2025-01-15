@@ -1,11 +1,16 @@
 #include "dhcp_utils.h"
 
+#define LOG_FILE "logs.txt"
+
 pthread_t threads[NR_THREADS];
 int available_thread[NR_THREADS];
 pthread_mutex_t thread_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+int log_fd = -1;
+
 int main()
 {
+    setvbuf(stdout, NULL, _IONBF, 0);
     sigset_t set;
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
@@ -32,6 +37,13 @@ int main()
     {
         perror("sigaction SIGQUIT");
         exit(EXIT_FAILURE);
+    }
+
+    log_fd = open(LOG_FILE, O_WRONLY);
+    if (log_fd == -1)
+    {
+        perror("open log file");
+        exit(errno);
     }
 
     char *configfile = readconfigfile();
@@ -78,6 +90,7 @@ int main()
     }
 
     printf("DHCP Server is running...\n");
+    printInLogFile("DHCP Server is running...\n");
     uint8_t offer_code = 2;
     uint8_t ack_code = 5;
     uint32_t dhcp_identifier = inet_addr(adresaIPServer);
@@ -100,7 +113,12 @@ int main()
     while (1)
     {
         nextAvailableIp = getNextAvailableIp(nrTotalIps);
-        printf("\nAvailable ip: %s", nextAvailableIp.ip_address);
+        printf("\nAvailable ip: %s\n", nextAvailableIp.ip_address);
+
+        char buff[100] = "Available IP Address: ";
+        strcat(buff, nextAvailableIp.ip_address);
+        strcat(buff, "\n");
+        printInLogFile(buff);
 
         memset(&packet, 0, sizeof(packet));
         recvfrom(sockfd, &packet, sizeof(packet), 0, (struct sockaddr *)&client_addr, &client_len);
@@ -132,6 +150,8 @@ int main()
         switch (message_type)
         {
         case 1:
+            printInLogFile("DHCP Discover received!\n");
+            printf("\nDHCP Discover received\n");
             DHCPStruct.code = offer_code;
             while (!found_available_thread)
             {
@@ -155,6 +175,7 @@ int main()
 
             break;
         case 3:
+            printInLogFile("DHCP Request received!\n");
             printf("\nDHCP Request received\n");
             DHCPStruct.code = ack_code;
             while (!found_available_thread)
@@ -184,6 +205,7 @@ int main()
     joinAllWorkingThreads();
 
     close(sockfd);
+    close(log_fd);
 
     return 0;
 }
