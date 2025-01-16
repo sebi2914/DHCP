@@ -1,4 +1,82 @@
-[21:05:26] [15.01.2025]	DHCP Server is running...
+[23:08:19] [16.01.2025]	DHCP Server is running...
 
-[21:05:26] [15.01.2025]	Available IP Address: 192.168.1.2
+[23:08:19] [16.01.2025]	Available IP Address: 192.168.15.226
+
+[23:08:23] [16.01.2025]	DHCP Request received!
+
+[23:08:23] [16.01.2025]	Available IP Address: 192.168.15.226
+
+[23:08:23] [16.01.2025]	IP Address is not available!
+
+[23:08:25] [16.01.2025]	DHCP Discover received!
+
+[23:08:25] [16.01.2025]	Available IP Address: 192.168.15.226
+
+[23:08:25] [16.01.2025]	Initializing DHCP Packet...
+
+[23:08:25] [16.01.2025]	DHCP Offer sent to client
+
+[23:08:25] [16.01.2025]	DHCP Request received!
+
+[23:08:25] [16.01.2025]	Available IP Address: 192.168.15.226
+
+[23:08:25] [16.01.2025]	Initializing DHCP Packet...
+
+[23:08:25] [16.01.2025]	DHCP ACK sent to client
+
+[23:08:28] [16.01.2025]	DHCP Request received!
+
+[23:08:28] [16.01.2025]	Available IP Address: 192.168.15.226
+
+[23:08:28] [16.01.2025]	Initializing DHCP Packet...
+
+[23:08:28] [16.01.2025]	DHCP ACK sent to client
+
+[23:08:31] [16.01.2025]	DHCP Request received!
+
+[23:08:31] [16.01.2025]	Available IP Address: 192.168.15.226
+
+[23:08:31] [16.01.2025]	Initializing DHCP Packet...
+
+[23:08:31] [16.01.2025]	DHCP ACK sent to client
+
+[23:08:33] [16.01.2025]	DHCP Request received!
+
+[23:08:33] [16.01.2025]	Available IP Address: 192.168.15.226
+
+[23:08:33] [16.01.2025]	Initializing DHCP Packet...
+
+[23:08:33] [16.01.2025]	DHCP ACK sent to client
+
+[23:08:35] [16.01.2025]	DHCP Request received!
+
+[23:08:35] [16.01.2025]	Available IP Address: 192.168.15.226
+
+[23:08:35] [16.01.2025]	Initializing DHCP Packet...
+
+[23:08:35] [16.01.2025]	DHCP ACK sent to client
+
+[23:08:37] [16.01.2025]	DHCP Request received!
+
+[23:08:37] [16.01.2025]	Available IP Address: 192.168.15.226
+
+[23:08:37] [16.01.2025]	Initializing DHCP Packet...
+
+[23:08:37] [16.01.2025]	DHCP ACK sent to client
+
+[23:08:39] [16.01.2025]	DHCP Request received!
+
+[23:08:39] [16.01.2025]	Available IP Address: 192.168.15.226
+
+[23:08:39] [16.01.2025]	Initializing DHCP Packet...
+
+[23:08:39] [16.01.2025]	DHCP ACK sent to client
+
+[23:08:42] [16.01.2025]	DHCP Request received!
+
+[23:08:42] [16.01.2025]	Available IP Address: 192.168.15.226
+
+[23:08:42] [16.01.2025]	Initializing DHCP Packet...
+
+[23:08:42] [16.01.2025]	DHCP ACK sent to client
 

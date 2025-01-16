@@ -110,9 +110,9 @@ int main()
     struct ip_cache_entry nextAvailableIp;
     struct threadsStruct DHCPStruct;
 
+    nextAvailableIp = getNextAvailableIp(nrTotalIps);
     while (1)
     {
-        nextAvailableIp = getNextAvailableIp(nrTotalIps);
         printf("\nAvailable ip: %s\n", nextAvailableIp.ip_address);
 
         char buff[100] = "Available IP Address: ";
@@ -162,6 +162,7 @@ int main()
                     pthread_mutex_lock(&thread_mutex);
                     if (available_thread[i] == THREAD_AVAILABLE)
                     {
+                        DHCPStruct.thread_index = i;
                         available_thread[i] = THREAD_UNAVAILABLE;
                         pthread_create(&threads[i], NULL, DHCPDiscover, &DHCPStruct);
                         found_available_thread = 1;
@@ -185,6 +186,7 @@ int main()
                     pthread_mutex_lock(&thread_mutex);
                     if (available_thread[i] == THREAD_AVAILABLE)
                     {
+                        DHCPStruct.thread_index = i;
                         available_thread[i] = THREAD_UNAVAILABLE;
                         pthread_create(&threads[i], NULL, DHCPSRequest, &DHCPStruct);
                         found_available_thread = 1;

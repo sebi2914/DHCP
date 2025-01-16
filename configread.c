@@ -170,9 +170,8 @@ struct ip_cache_entry *cacheIpAddresses(int *n)
 
 void setUnavailable(int totalAddresses)
 {
-    char buffer[16]; // Buffer pentru a stoca adresa IP
+    char buffer[16];
 
-    // Executăm comanda folosind popen pentru a obține adresa IP
     FILE *cmd = popen("ifconfig | egrep -o \"inet\\s+([0-9]{1,3}\\.){3}[0-9]{1,3}\" | egrep -v \"127\\.\" | head -n 1 | awk '{print $2}'", "r");
     if (cmd == NULL)
     {
@@ -180,20 +179,18 @@ void setUnavailable(int totalAddresses)
         exit(EXIT_FAILURE);
     }
 
-    // Citim rezultatul comenzii în buffer
     if (fgets(buffer, sizeof(buffer), cmd) != NULL)
     {
-        buffer[strcspn(buffer, "\n")] = '\0'; // Eliminăm newline-ul de la sfârșit, dacă există
+        buffer[strcspn(buffer, "\n")] = '\0';
         printf("IP Address: %s\n", buffer);
 
-        // Parcurgem lista de adrese IP și marcăm adresa IP a serverului ca indisponibilă
         for (int i = 0; i < totalAddresses; i++)
         {
             if (strcmp(ips[i].ip_address, buffer) == 0)
             {
-                ips[i].available = UNAVAILABLE;            // Marcam adresa ca indisponibilă
-                strcpy(adresaIPServer, ips[i].ip_address); // Salvăm adresa IP a serverului
-                break;                                     // Ieșim din buclă, deoarece am găsit adresa
+                ips[i].available = UNAVAILABLE;
+                strcpy(adresaIPServer, ips[i].ip_address);
+                break;
             }
         }
     }
@@ -202,7 +199,6 @@ void setUnavailable(int totalAddresses)
         fprintf(stderr, "Failed to read IP address from command.\n");
     }
 
-    // Închidem pipe-ul și verificăm eventualele erori
     if (pclose(cmd) == -1)
     {
         perror("pclose failed");

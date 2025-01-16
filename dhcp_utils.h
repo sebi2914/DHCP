@@ -77,6 +77,7 @@ struct threadsStruct
     struct sockaddr_in client_addr;
     socklen_t client_len;
     int sockfd;
+    int thread_index;
 };
 
 void print_hex(unsigned char *sir, int size);

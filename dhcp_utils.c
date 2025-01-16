@@ -119,8 +119,8 @@ void init_dhcp_packet(struct dhcp_packet *packet, unsigned char *ip_address)
     packet->flags = htons(0x8000);
     // ciaddr is set by client
     packet->yiaddr = inet_addr(ip_address);
-    packet->siaddr = inet_addr("192.168.1.2");
-    packet->giaddr = inet_addr("192.168.1.1");
+    packet->siaddr = inet_addr(adresaIPServer);
+    packet->giaddr = inet_addr(gateway);
     // chaddr is set by client
     strcpy(packet->sname, "Test DHCP Server");
 }
@@ -216,16 +216,13 @@ void *DHCPDiscover(void *arg)
     struct threadsStruct *DHCPD = &stackDHCPD;
     memcpy(DHCPD, initialDHCPD, sizeof(struct threadsStruct));
     pthread_mutex_unlock(&mutex_struct);
-
     init_dhcp_packet(&(DHCPD->packet), DHCPD->nextAvailableIp.ip_address);
-
     set_mac_to_addr(DHCPD->packet.chaddr, DHCPD->nextAvailableIp.ip_address, DHCPD->nrTotalIps);
 
     unsigned char *options = DHCPD->packet.options;
     options += 4;
     set_dhcp_packet_options(&(options), &(DHCPD->code), &(DHCPD->dhcp_identifier), &(DHCPD->subnet_mask), &(DHCPD->default_gateway),
                             &(DHCPD->broadcast_address), &(DHCPD->lease_time), DHCPD->dns_servers);
-
     int actual_packet_size = size_to_send(DHCPD->packet.options);
 
     memset(&(DHCPD->client_addr), 0, DHCPD->client_len);
@@ -243,7 +240,7 @@ void *DHCPDiscover(void *arg)
         printInLogFile("DHCP Offer sent to client\n");
         printf("DHCP Offer sent to client\n");
     }
-
+    available_thread[DHCPD->thread_index] = AVAILABLE;
     pthread_exit(NULL);
 }
 
@@ -254,31 +251,26 @@ void *DHCPSRequest(void *arg)
     struct threadsStruct stackDHCPR;
     struct threadsStruct *DHCPR = &stackDHCPR;
     memcpy(DHCPR, initialDHCPR, sizeof(struct threadsStruct));
+    int inCache = check_mac_in_cache(DHCPR->packet.chaddr, DHCPR->nrTotalIps);
     pthread_mutex_unlock(&mutex_struct);
-
     uint32_t requested_ip;
-
     if (DHCPR->packet.ciaddr == 0)
         requested_ip = INADDR_BROADCAST;
     else
         requested_ip = DHCPR->packet.ciaddr;
-
-    if (check_mac_in_cache(DHCPR->packet.chaddr, DHCPR->nrTotalIps))
+    printf("IN  CACHE: %d\n", inCache);
+    if (inCache)
     {
-
         init_dhcp_packet(&(DHCPR->packet), DHCPR->nextAvailableIp.ip_address);
-
         unsigned char *options = DHCPR->packet.options;
         options += 4;
-        set_dhcp_packet_options(&(options), &(DHCPR->code), &(DHCPR->dhcp_identifier), &(DHCPR->subnet_mask), &(DHCPR->default_gateway), &(DHCPR->broadcast_address), &(DHCPR->lease_time), DHCPR->dns_servers);
-
+        set_dhcp_packet_options(&(options), &(DHCPR->code), &(DHCPR->dhcp_identifier), &(DHCPR->subnet_mask), &(DHCPR->default_gateway),
+                                &(DHCPR->broadcast_address), &(DHCPR->lease_time), DHCPR->dns_servers);
         memset(&(DHCPR->client_addr), 0, DHCPR->client_len);
         DHCPR->client_addr.sin_family = AF_INET;
         DHCPR->client_addr.sin_addr.s_addr = requested_ip;
         DHCPR->client_addr.sin_port = htons(68);
-
         int actual_packet_size = size_to_send(DHCPR->packet.options);
-
         if (sendto(DHCPR->sockfd, &(DHCPR->packet), actual_packet_size, 0, (struct sockaddr *)&(DHCPR->client_addr), DHCPR->client_len) < 0)
         {
             printInLogFile("Failed to send DHCP ACK\n");
@@ -295,4 +287,6 @@ void *DHCPSRequest(void *arg)
         printInLogFile("IP Address is not available!\n");
         printf("IP Address is not available!\n");
     }
+    available_thread[DHCPR->thread_index] = AVAILABLE;
+    pthread_exit(NULL);
 }
