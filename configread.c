@@ -232,7 +232,7 @@ int check_mac_addr(uint8_t cache_addr[6], unsigned char incoming_addr[12])
     return 1;
 }
 
-int check_mac_in_cache(unsigned char *client_mac, int cache_size)
+unsigned char *check_mac_in_cache(unsigned char *client_mac, int cache_size)
 {
     for (int i = 0; i < cache_size; i++)
     {
@@ -241,12 +241,12 @@ int check_mac_in_cache(unsigned char *client_mac, int cache_size)
             if (ips[i].available == UNAVAILABLE)
             {
                 ips[i].lease_time = leasing_time;
-                return 1;
+                return ips[i].ip_address;
             }
-            return 0;
+            return NULL;
         }
     }
-    return 0;
+    return NULL;
 }
 
 void set_mac_to_addr(unsigned char *mac_addr, unsigned char *ip_addr, int cache_size)

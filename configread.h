@@ -43,7 +43,7 @@ struct ip_cache_entry getNextAvailableIp(int n);
 
 void checkAvailability(int n);
 
-int check_mac_in_cache(unsigned char *client_mac, int cache_size);
+unsigned char *check_mac_in_cache(unsigned char *client_mac, int cache_size);
 
 void set_mac_to_addr(unsigned char *mac_addr, unsigned char *ip_addr, int cache_size);
 

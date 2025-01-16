@@ -251,17 +251,17 @@ void *DHCPSRequest(void *arg)
     struct threadsStruct stackDHCPR;
     struct threadsStruct *DHCPR = &stackDHCPR;
     memcpy(DHCPR, initialDHCPR, sizeof(struct threadsStruct));
-    int inCache = check_mac_in_cache(DHCPR->packet.chaddr, DHCPR->nrTotalIps);
+    unsigned char *cachedIP = check_mac_in_cache(DHCPR->packet.chaddr, DHCPR->nrTotalIps);
     pthread_mutex_unlock(&mutex_struct);
     uint32_t requested_ip;
     if (DHCPR->packet.ciaddr == 0)
         requested_ip = INADDR_BROADCAST;
     else
         requested_ip = DHCPR->packet.ciaddr;
-    printf("IN  CACHE: %d\n", inCache);
-    if (inCache)
+    printf("IN  CACHE: %s\n", cachedIP);
+    if (cachedIP)
     {
-        init_dhcp_packet(&(DHCPR->packet), DHCPR->nextAvailableIp.ip_address);
+        init_dhcp_packet(&(DHCPR->packet), cachedIP);
         unsigned char *options = DHCPR->packet.options;
         options += 4;
         set_dhcp_packet_options(&(options), &(DHCPR->code), &(DHCPR->dhcp_identifier), &(DHCPR->subnet_mask), &(DHCPR->default_gateway),

@@ -110,15 +110,8 @@ int main()
     struct ip_cache_entry nextAvailableIp;
     struct threadsStruct DHCPStruct;
 
-    nextAvailableIp = getNextAvailableIp(nrTotalIps);
     while (1)
     {
-        printf("\nAvailable ip: %s\n", nextAvailableIp.ip_address);
-
-        char buff[100] = "Available IP Address: ";
-        strcat(buff, nextAvailableIp.ip_address);
-        strcat(buff, "\n");
-        printInLogFile(buff);
 
         memset(&packet, 0, sizeof(packet));
         recvfrom(sockfd, &packet, sizeof(packet), 0, (struct sockaddr *)&client_addr, &client_len);
@@ -132,7 +125,6 @@ int main()
 
         pthread_mutex_lock(&mutex_struct);
         DHCPStruct.nrTotalIps = nrTotalIps;
-        memcpy(&(DHCPStruct.nextAvailableIp), &nextAvailableIp, sizeof(nextAvailableIp));
         memcpy(&DHCPStruct.packet, &packet, sizeof(packet));
         // DHCPStruct.code = offer_code;
         DHCPStruct.dhcp_identifier = dhcp_identifier;
@@ -150,6 +142,14 @@ int main()
         switch (message_type)
         {
         case 1:
+            nextAvailableIp = getNextAvailableIp(nrTotalIps);
+            memcpy(&(DHCPStruct.nextAvailableIp), &nextAvailableIp, sizeof(nextAvailableIp));
+            printf("\nAvailable ip: %s\n", nextAvailableIp.ip_address);
+
+            char buff[100] = "Available IP Address: ";
+            strcat(buff, nextAvailableIp.ip_address);
+            strcat(buff, "\n");
+            printInLogFile(buff);
             printInLogFile("DHCP Discover received!\n");
             printf("\nDHCP Discover received\n");
             DHCPStruct.code = offer_code;
